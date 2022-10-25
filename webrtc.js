@@ -185,7 +185,7 @@ function gotMessageFromServer(message) {
 			localPeerConnection.setRemoteDescription(signal.sdp).catch(errorHandler);
 			if (!remotePeerConnection || !remotePeerConnection.remoteDescription) {
 				// Remote接続が開始していないので再オファーを要求
-				serverConnection.send(JSON.stringify({'re_offer': 1, 'remote': remoteId, 'sid': localSid}));
+				serverConnection.send(JSON.stringify({re_offer: 1, remote: remoteId, sid: localSid}));
 			}
 		}
 	} else if (signal.ice_r) {
