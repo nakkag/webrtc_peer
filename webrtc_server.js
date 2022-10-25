@@ -26,9 +26,6 @@ const socketProc = function(ws, req) {
 		const json = JSON.parse(message);
 		if (json.open) {
 			console.log('open: ' + ws._socket.remoteAddress + ': local=' + json.open.local + ', remote=' + json.open.remote);
-			if (!json.open.local || !json.open.remote) {
-				return;
-			}
 			// 同一IDが存在するときは古い方を削除
 			connections = connections.filter(function (data, i) {
 				if (data.local === json.open.local && data.remote === json.open.remote) {
