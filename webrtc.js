@@ -160,7 +160,7 @@ function gotMessageFromServer(message) {
 	}
 	if (signal.re_offer) {
 		// 再オファーの要求
-		if (signal.sid !== undefined && signal.sid !== remoteSid) {
+		if (signal.sid && signal.sid !== remoteSid) {
 			return;
 		}
 		// Local接続を再スタートする
@@ -169,7 +169,7 @@ function gotMessageFromServer(message) {
 	}
 	if (signal.sdp) {
 		if (signal.sdp.type === 'offer') {
-			if (signal.sid !== undefined) {
+			if (signal.sid) {
 				// Remote接続IDを保存
 				remoteSid = signal.sid;
 			}
@@ -179,7 +179,7 @@ function gotMessageFromServer(message) {
 				remotePeerConnection.createAnswer().then(gotAnswer).catch(errorHandler);
 			}).catch(errorHandler);
 		} else if (signal.sdp.type === 'answer') {
-			if (!localPeerConnection || (signal.sid !== undefined && signal.sid !== localSid)) {
+			if (!localPeerConnection || (signal.sid && signal.sid !== localSid)) {
 				return;
 			}
 			localPeerConnection.setRemoteDescription(signal.sdp).catch(errorHandler);
@@ -190,7 +190,7 @@ function gotMessageFromServer(message) {
 		}
 	} else if (signal.ice_r) {
 		if (remotePeerConnection && remotePeerConnection.remoteDescription) {
-			if (signal.sid === undefined || signal.sid === remoteSid) {
+			if (!signal.sid || signal.sid === remoteSid) {
 				remotePeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_r)).catch(errorHandler);
 			}
 		} else {
@@ -200,7 +200,7 @@ function gotMessageFromServer(message) {
 		}
 	} else if (signal.ice_l) {
 		if (localPeerConnection && localPeerConnection.remoteDescription) {
-			if (signal.sid === undefined || signal.sid === localSid) {
+			if (!signal.sid || signal.sid === localSid) {
 				localPeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_l)).catch(errorHandler);
 			}
 		} else {
