@@ -105,10 +105,6 @@ function stopVideo() {
 		}
 		remoteVideo.srcObject = null;
 	}
-	if (localPeerConnection !== null) {
-		localPeerConnection.close();
-		localPeerConnection = null;
-	}
 	if (remotePeerConnection !== null) {
 		remotePeerConnection.close();
 		remotePeerConnection = null;
@@ -118,8 +114,6 @@ function stopVideo() {
 }
 
 function localStart() {
-	// Local接続IDの生成、複数のICEメッセージが混在する場合に今のセッションを判断するのに利用する
-	localSid = new Date().getTime().toString(16) + Math.floor(Math.random() * 1000).toString(16);
 	if (localPeerConnection !== null) {
 		localPeerConnection.close();
 	}
@@ -159,40 +153,32 @@ function gotMessageFromServer(message) {
 		return;
 	}
 	if (signal.re_offer) {
-		// 再オファーの要求
-		if (signal.sid && signal.sid !== remoteSid) {
-			return;
+		if (localPeerConnection) {
+			// 再オファー
+			localPeerConnection.createOffer({iceRestart: true}).then(createdDescription).catch(errorHandler);
 		}
-		// Local接続を再スタートする
-		localStart();
 		return;
 	}
 	if (signal.sdp) {
 		if (signal.sdp.type === 'offer') {
-			if (signal.sid) {
-				// Remote接続IDを保存
-				remoteSid = signal.sid;
-			}
 			// Remote接続の開始
 			remoteStart();
 			remotePeerConnection.setRemoteDescription(signal.sdp).then(function() {
 				remotePeerConnection.createAnswer().then(gotAnswer).catch(errorHandler);
 			}).catch(errorHandler);
 		} else if (signal.sdp.type === 'answer') {
-			if (!localPeerConnection || (signal.sid && signal.sid !== localSid)) {
+			if (!localPeerConnection) {
 				return;
 			}
 			localPeerConnection.setRemoteDescription(signal.sdp).catch(errorHandler);
 			if (!remotePeerConnection || !remotePeerConnection.remoteDescription) {
 				// Remote接続が開始していないので再オファーを要求
-				serverConnection.send(JSON.stringify({re_offer: 1, remote: remoteId, sid: localSid}));
+				serverConnection.send(JSON.stringify({re_offer: 1, remote: remoteId}));
 			}
 		}
 	} else if (signal.ice_r) {
 		if (remotePeerConnection && remotePeerConnection.remoteDescription) {
-			if (!signal.sid || signal.sid === remoteSid) {
-				remotePeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_r)).catch(errorHandler);
-			}
+			remotePeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_r)).catch(errorHandler);
 		} else {
 			// Remote接続が開始していないのでRemoteキューに貯める
 			remoteQueue.push(message);
@@ -200,9 +186,7 @@ function gotMessageFromServer(message) {
 		}
 	} else if (signal.ice_l) {
 		if (localPeerConnection && localPeerConnection.remoteDescription) {
-			if (!signal.sid || signal.sid === localSid) {
-				localPeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_l)).catch(errorHandler);
-			}
+			localPeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_l)).catch(errorHandler);
 		} else {
 			// Local接続が開始していないのでLocalキューに貯める
 			localQueue.push(message);
@@ -221,25 +205,25 @@ function gotMessageFromServer(message) {
 
 function gotIceCandidateLocal(event) {
 	if (event.candidate != null) {
-		serverConnection.send(JSON.stringify({ice_r: event.candidate, remote: remoteId, sid: localSid}));
+		serverConnection.send(JSON.stringify({ice_r: event.candidate, remote: remoteId}));
 	}
 }
 
 function gotIceCandidateRemote(event) {
 	if (event.candidate != null) {
-		serverConnection.send(JSON.stringify({ice_l: event.candidate, remote: remoteId, sid: remoteSid}));
+		serverConnection.send(JSON.stringify({ice_l: event.candidate, remote: remoteId}));
 	}
 }
 
 function createdDescription(description) {
 	localPeerConnection.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: localPeerConnection.localDescription, remote: remoteId, sid: localSid}));
+		serverConnection.send(JSON.stringify({sdp: localPeerConnection.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
 function gotAnswer(description) {
 	remotePeerConnection.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: remotePeerConnection.localDescription, remote: remoteId, sid: remoteSid}));
+		serverConnection.send(JSON.stringify({sdp: remotePeerConnection.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
