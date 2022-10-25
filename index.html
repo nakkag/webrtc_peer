@@ -1,0 +1,26 @@
+<html>
+<head>
+	<title>WebRTC(Peer) Sample</title>
+	<script type="text/javascript" src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+	<script type="text/javascript" src="webrtc.js"></script>
+	<style type="text/css">
+	video {
+		width: 100%;
+	}
+	</style>
+</head>
+<body>
+	<div id="localVideoWrapper">
+		Local
+		<div id="localVideoContainer">
+			<video id="localVideo" playsinline autoplay muted />
+		</div>
+	</div>
+	<div id="remoteVideoWrapper">
+		Remote
+		<div id="remoteVideoContainer">
+			<video id="remoteVideo" playsinline autoplay />
+		</div>
+	</div>
+</body>
+</html>
