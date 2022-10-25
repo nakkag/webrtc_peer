@@ -57,7 +57,7 @@ const socketProc = function(ws, req) {
 		// 対向の接続を検索
 		connections.some(function(data) {
 			if (data.local === json.remote && data.ws.readyState === WebSocket.OPEN) {
-				/// シグナリングメッセージの転送
+				// シグナリングメッセージの転送
 				data.ws.send(JSON.stringify(json));
 				return true;
 			}
