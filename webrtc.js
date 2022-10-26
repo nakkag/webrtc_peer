@@ -3,7 +3,6 @@ let localVideo, remoteVideo;
 let localPeerConnection = null, remotePeerConnection = null;
 let localQueue = new Array(), remoteQueue = new Array();
 let localId, remoteId;
-let localSid = 0, remoteSid = 0;
 
 const sslPort = 8443;
 const peerConnectionConfig = {
