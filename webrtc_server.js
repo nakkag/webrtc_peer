@@ -27,12 +27,7 @@ const socketProc = function(ws, req) {
 		if (json.open) {
 			console.log('open: ' + ws._socket.remoteAddress + ': local=' + json.open.local + ', remote=' + json.open.remote);
 			// 同一IDが存在するときは古い方を削除
-			connections = connections.filter(function (data, i) {
-				if (data.local === json.open.local && data.remote === json.open.remote) {
-					return false;
-				}
-				return true;
-			});
+			connections = connections.filter(data => !(data.local === json.open.local && data.remote === json.open.remote));
 			// 接続情報を保存
 			connections.push({local: json.open.local, remote: json.open.remote, ws: ws});
 			ws.send(JSON.stringify({start: 1}));
