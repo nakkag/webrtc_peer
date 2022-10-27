@@ -103,12 +103,26 @@ function startPeerConnection() {
 	stopPeerConnection();
 	queue = new Array();
 	pc = new RTCPeerConnection(peerConnectionConfig);
-	pc.onicecandidate = gotIceCandidate;
+	pc.onicecandidate = function(event) {
+		if (event.candidate) {
+			// ICE送信
+			sc.send(JSON.stringify({ice: event.candidate, remote: remoteId}));
+		}
+	};
 	if (window.stream) {
+		// Local側のストリームを設定
 		window.stream.getTracks().forEach(track => pc.addTrack(track, window.stream));
 	}
-	pc.ontrack = gotRemoteStream;
-	pc.createOffer().then(createdDescription).catch(errorHandler);
+	pc.ontrack = function(event) {
+		// Remote側のストリームを設定
+		if (event.streams && event.streams[0]) {
+			remoteVideo.srcObject = event.streams[0];
+		} else {
+			remoteVideo.srcObject = new MediaStream(event.track);
+		}
+	};
+	// Offerの作成
+	pc.createOffer().then(setDescription).catch(errorHandler);
 }
 
 function stopPeerConnection() {
@@ -137,11 +151,13 @@ function gotMessageFromServer(message) {
 	if (!pc) {
 		return;
 	}
+	// 以降はWebRTCのシグナリング処理
 	if (signal.sdp) {
+		// SDP受信
 		if (pc.remoteDescription) {
 			// Peer接続済で新しいPeer接続が来た場合は古い方を破棄する
 			stopPeerConnection();
-			// 同時接続回避のための遅延
+			// 対向との同時接続を回避するために遅延する
 			setTimeout(function() {
 				startPeerConnection();
 			}, Math.floor(Math.random() * 1000));
@@ -149,16 +165,19 @@ function gotMessageFromServer(message) {
 		}
 		if (signal.sdp.type === 'offer') {
 			pc.setRemoteDescription(signal.sdp).then(function() {
-				pc.createAnswer().then(gotAnswer).catch(errorHandler);
+				// Answerの作成
+				pc.createAnswer().then(setDescription).catch(errorHandler);
 			}).catch(errorHandler);
 		} else if (signal.sdp.type === 'answer') {
 			pc.setRemoteDescription(signal.sdp).catch(errorHandler);
 		}
-	} else if (signal.ice) {
+	}
+	if (signal.ice) {
+		// ICE受信
 		if (pc.remoteDescription) {
 			pc.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(errorHandler);
 		} else {
-			// Peer接続が完了していないのでキューに貯める
+			// SDPが未処理のためキューに貯める
 			queue.push(message);
 			return;
 		}
@@ -169,30 +188,11 @@ function gotMessageFromServer(message) {
 	}
 }
 
-function gotIceCandidate(event) {
-	if (event.candidate) {
-		sc.send(JSON.stringify({ice: event.candidate, remote: remoteId}));
-	}
-}
-
-function createdDescription(description) {
+function setDescription(description) {
 	pc.setLocalDescription(description).then(function() {
+		// SDP送信
 		sc.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
-}
-
-function gotAnswer(description) {
-	pc.setLocalDescription(description).then(function() {
-		sc.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
-	}).catch(errorHandler);
-}
-
-function gotRemoteStream(event) {
-	if (event.streams && event.streams[0]) {
-		remoteVideo.srcObject = event.streams[0];
-	} else {
-		remoteVideo.srcObject = new MediaStream(event.track);
-	}
 }
 
 function errorHandler(error) {
