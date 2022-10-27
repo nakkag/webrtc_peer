@@ -54,7 +54,7 @@ function startWebRTC(localId, remoteId) {
 				// 一定時間経過後にサーバーへ再接続
 				startWebRTC(localId, remoteId);
 			}
-		}, Math.floor(Math.random() * 4000) + 1000, this);
+		}, 5000, this);
 	}
 	serverConnection.timer = setInterval(function() {
 		// 接続確認
@@ -120,8 +120,8 @@ function startPeer() {
 	if (window.stream) {
 		window.stream.getTracks().forEach(track => pc.addTrack(track, window.stream));
 	}
-	pc.createOffer().then(createdDescription).catch(errorHandler);
 	pc.ontrack = gotRemoteStream;
+	pc.createOffer().then(createdDescription).catch(errorHandler);
 }
 
 function gotMessageFromServer(message) {
@@ -141,14 +141,20 @@ function gotMessageFromServer(message) {
 		serverConnection.send(JSON.stringify({pong: 1}));
 		return;
 	}
+	if (!pc) {
+		return;
+	}
 	if (signal.sdp) {
-		if (signal.sdp.type === 'offer') {
-			if (pc.remoteDescription) {
-				// Peer接続済のため今のPeerを破棄して、新しいPeerを開始する
-				stopVideo();
+		if (pc.remoteDescription) {
+			// Peer接続済のためPeerを破棄して、新しいPeerを開始する
+			stopVideo();
+			// 同時接続回避のための遅延
+			setTimeout(function() {
 				startPeer();
-				return;
-			}
+			}, Math.floor(Math.random() * 1000));
+			return;
+		}
+		if (signal.sdp.type === 'offer') {
 			pc.setRemoteDescription(signal.sdp).then(function() {
 				pc.createAnswer().then(gotAnswer).catch(errorHandler);
 			}).catch(errorHandler);
