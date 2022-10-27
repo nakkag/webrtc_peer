@@ -153,13 +153,10 @@ function gotMessageFromServer(message) {
 				pc.createAnswer().then(gotAnswer).catch(errorHandler);
 			}).catch(errorHandler);
 		} else if (signal.sdp.type === 'answer') {
-			if (!pc) {
-				return;
-			}
 			pc.setRemoteDescription(signal.sdp).catch(errorHandler);
 		}
 	} else if (signal.ice) {
-		if (pc && pc.remoteDescription) {
+		if (pc.remoteDescription) {
 			pc.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(errorHandler);
 		} else {
 			// Peer接続が完了していないのでキューに貯める
@@ -167,7 +164,7 @@ function gotMessageFromServer(message) {
 			return;
 		}
 	}
-	if (queue.length > 0 && pc && pc.remoteDescription) {
+	if (queue.length > 0 && pc.remoteDescription) {
 		// キューのメッセージを再処理
 		gotMessageFromServer(queue.shift());
 	}
