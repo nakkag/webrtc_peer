@@ -1,7 +1,7 @@
 let serverConnection;
 let localVideo, remoteVideo;
-let localPeerConnection = null, remotePeerConnection = null;
-let localQueue = new Array(), remoteQueue = new Array();
+let pc = null;
+let queue = new Array();
 let localId, remoteId;
 
 const sslPort = 8443;
@@ -54,7 +54,7 @@ function startWebRTC(localId, remoteId) {
 				// 一定時間経過後にサーバーへ再接続
 				startWebRTC(localId, remoteId);
 			}
-		}, 5000, this);
+		}, Math.floor(Math.random() * 4000) + 1000, this);
 	}
 	serverConnection.timer = setInterval(function() {
 		// 接続確認
@@ -83,7 +83,7 @@ function startVideo() {
 		navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
 			window.stream = stream;
 			localVideo.srcObject = stream;
-			localStart();
+			startPeer();
 		}).catch(e => {
 			console.error(error);
 			alert('WebCam Start Error.\n\n' + error);
@@ -104,35 +104,24 @@ function stopVideo() {
 		}
 		remoteVideo.srcObject = null;
 	}
-	if (remotePeerConnection !== null) {
-		remotePeerConnection.close();
-		remotePeerConnection = null;
+	if (pc !== null) {
+		pc.close();
+		pc = null;
 	}
-	localQueue = new Array();
-	remoteQueue = new Array();
+	queue = new Array();
 }
 
-function localStart() {
-	if (localPeerConnection !== null) {
-		localPeerConnection.close();
+function startPeer() {
+	if (pc !== null) {
+		pc.close();
 	}
-	// Local接続の開始
-	localPeerConnection = new RTCPeerConnection(peerConnectionConfig);
-	localPeerConnection.onicecandidate = gotIceCandidateLocal;
+	pc = new RTCPeerConnection(peerConnectionConfig);
+	pc.onicecandidate = gotIceCandidate;
 	if (window.stream) {
-		window.stream.getTracks().forEach(track => localPeerConnection.addTrack(track, window.stream));
+		window.stream.getTracks().forEach(track => pc.addTrack(track, window.stream));
 	}
-	localPeerConnection.createOffer().then(createdDescription).catch(errorHandler);
-}
-
-function remoteStart() {
-	if (remotePeerConnection !== null) {
-		remotePeerConnection.close();
-	}
-	// Remote接続の開始
-	remotePeerConnection = new RTCPeerConnection(peerConnectionConfig);
-	remotePeerConnection.onicecandidate = gotIceCandidateRemote;
-	remotePeerConnection.ontrack = gotRemoteStream;
+	pc.createOffer().then(createdDescription).catch(errorHandler);
+	pc.ontrack = gotRemoteStream;
 }
 
 function gotMessageFromServer(message) {
@@ -145,84 +134,60 @@ function gotMessageFromServer(message) {
 	if (signal.close) {
 		// 接続先の終了通知
 		stopVideo();
+		startPeer();
 		return;
 	}
 	if (signal.ping) {
 		serverConnection.send(JSON.stringify({pong: 1}));
 		return;
 	}
-	if (signal.re_offer) {
-		if (localPeerConnection) {
-			// 再オファー
-			localPeerConnection.createOffer({iceRestart: true}).then(createdDescription).catch(errorHandler);
-		}
-		return;
-	}
 	if (signal.sdp) {
 		if (signal.sdp.type === 'offer') {
-			// Remote接続の開始
-			remoteStart();
-			remotePeerConnection.setRemoteDescription(signal.sdp).then(function() {
-				remotePeerConnection.createAnswer().then(gotAnswer).catch(errorHandler);
-			}).catch(errorHandler);
-		} else if (signal.sdp.type === 'answer') {
-			if (!localPeerConnection) {
+			if (pc.remoteDescription) {
+				// Peer接続済のため今のPeerを破棄して、新しいPeerを開始する
+				stopVideo();
+				startPeer();
 				return;
 			}
-			localPeerConnection.setRemoteDescription(signal.sdp).catch(errorHandler);
-			if (!remotePeerConnection || !remotePeerConnection.remoteDescription) {
-				// Remote接続が開始していないので再オファーを要求
-				serverConnection.send(JSON.stringify({re_offer: 1, remote: remoteId}));
+			pc.setRemoteDescription(signal.sdp).then(function() {
+				pc.createAnswer().then(gotAnswer).catch(errorHandler);
+			}).catch(errorHandler);
+		} else if (signal.sdp.type === 'answer') {
+			if (!pc) {
+				return;
 			}
+			pc.setRemoteDescription(signal.sdp).catch(errorHandler);
 		}
-	} else if (signal.ice_r) {
-		if (remotePeerConnection && remotePeerConnection.remoteDescription) {
-			remotePeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_r)).catch(errorHandler);
+	} else if (signal.ice) {
+		if (pc && pc.remoteDescription) {
+			pc.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(errorHandler);
 		} else {
-			// Remote接続が開始していないのでRemoteキューに貯める
-			remoteQueue.push(message);
-			return;
-		}
-	} else if (signal.ice_l) {
-		if (localPeerConnection && localPeerConnection.remoteDescription) {
-			localPeerConnection.addIceCandidate(new RTCIceCandidate(signal.ice_l)).catch(errorHandler);
-		} else {
-			// Local接続が開始していないのでLocalキューに貯める
-			localQueue.push(message);
+			// Peer接続が完了していないのでキューに貯める
+			queue.push(message);
 			return;
 		}
 	}
-	if (remoteQueue.length > 0 && remotePeerConnection && remotePeerConnection.remoteDescription) {
-		// Remoteキューのメッセージを再処理
-		gotMessageFromServer(remoteQueue.shift());
-	}
-	if (localQueue.length > 0 && localPeerConnection && localPeerConnection.remoteDescription) {
-		// Localキューのメッセージを再処理
-		gotMessageFromServer(localQueue.shift());
+	if (queue.length > 0 && pc && pc.remoteDescription) {
+		// キューのメッセージを再処理
+		gotMessageFromServer(queue.shift());
 	}
 }
 
-function gotIceCandidateLocal(event) {
+function gotIceCandidate(event) {
 	if (event.candidate != null) {
-		serverConnection.send(JSON.stringify({ice_r: event.candidate, remote: remoteId}));
-	}
-}
-
-function gotIceCandidateRemote(event) {
-	if (event.candidate != null) {
-		serverConnection.send(JSON.stringify({ice_l: event.candidate, remote: remoteId}));
+		serverConnection.send(JSON.stringify({ice: event.candidate, remote: remoteId}));
 	}
 }
 
 function createdDescription(description) {
-	localPeerConnection.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: localPeerConnection.localDescription, remote: remoteId}));
+	pc.setLocalDescription(description).then(function() {
+		serverConnection.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
 function gotAnswer(description) {
-	remotePeerConnection.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: remotePeerConnection.localDescription, remote: remoteId}));
+	pc.setLocalDescription(description).then(function() {
+		serverConnection.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
