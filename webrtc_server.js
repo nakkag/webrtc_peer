@@ -33,10 +33,6 @@ const socketProc = function(ws, req) {
 			ws.send(JSON.stringify({start: 1}));
 			return;
 		}
-		if (json.error) {
-			console.error('client_error: ' + ws._socket.remoteAddress + ': ' + json.error);
-			return;
-		}
 		if (json.pong) {
 			return;
 		}
