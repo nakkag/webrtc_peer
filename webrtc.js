@@ -1,13 +1,11 @@
-let serverConnection;
 let localVideo, remoteVideo;
-let pc = null;
-let queue = new Array();
 let localId, remoteId;
+let sc, pc, queue;
 
 const sslPort = 8443;
 const peerConnectionConfig = {
 	iceServers: [
-		// GoogleのパブリックSTUNサーバーを指定しているが自前のSTUNサーバーがあれば変更する
+		// GoogleのパブリックSTUNサーバーを指定しているが自前のSTUNサーバーに変更可
 		{urls: 'stun:stun.l.google.com:19302'},
 		{urls: 'stun:stun1.l.google.com:19302'},
 		{urls: 'stun:stun2.l.google.com:19302'},
@@ -17,52 +15,21 @@ const peerConnectionConfig = {
 };
 
 document.onreadystatechange = function() {
-	// Local IDとRemote IDを入力する
+	localVideo = document.getElementById('localVideo');
+	remoteVideo = document.getElementById('remoteVideo');
+
 	// Local IDとRemote IDは別々の値を入力する
-	// Remote IDと対向のLocal IDが一致するとカメラ接続が開始する
+	// Remote IDと対向のLocal IDが一致するとビデオ通話を開始する
 	while (!localId) {
 		localId = window.prompt('Local ID', '');
 	}
 	while (!remoteId) {
 		remoteId = window.prompt('Remote ID', '');
 	}
-	startWebRTC(localId, remoteId);
+	startVideo(localId, remoteId);
 }
 
-function startWebRTC(localId, remoteId) {
-	localVideo = document.getElementById('localVideo');
-	if (localVideo) {
-		localVideo.srcObject = null;
-	}
-	remoteVideo = document.getElementById('remoteVideo');
-	stopVideo();
-
-	if (serverConnection) {
-		serverConnection.close();
-	}
-	// サーバー接続の開始
-	serverConnection = new WebSocket('wss://' + location.hostname + ':' + sslPort + '/');
-	serverConnection.onmessage = gotMessageFromServer;
-	serverConnection.onopen = function(event) {
-		// サーバーに接続情報を通知
-		this.send(JSON.stringify({open: {local: localId, remote: remoteId}}));
-	};
-	serverConnection.onclose = function(event) {
-		clearInterval(this.timer);
-		setTimeout(function(conn) {
-			if (serverConnection === conn) {
-				// 一定時間経過後にサーバーへ再接続
-				startWebRTC(localId, remoteId);
-			}
-		}, 5000, this);
-	}
-	serverConnection.timer = setInterval(function() {
-		// 接続確認
-		serverConnection.send(JSON.stringify({ping: 1}));
-	}, 30000);
-}
-
-function startVideo() {
+function startVideo(localId, remoteId) {
 	if (navigator.mediaDevices.getUserMedia) {
 		if (window.stream) {
 			// 既存のストリームを破棄
@@ -83,7 +50,7 @@ function startVideo() {
 		navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
 			window.stream = stream;
 			localVideo.srcObject = stream;
-			startPeer();
+			startServerConnection(localId, remoteId);
 		}).catch(e => {
 			console.error(error);
 			alert('WebCam Start Error.\n\n' + error);
@@ -94,7 +61,7 @@ function startVideo() {
 }
 
 function stopVideo() {
-	if (remoteVideo && remoteVideo.srcObject) {
+	if (remoteVideo.srcObject) {
 		try {
 			remoteVideo.srcObject.getTracks().forEach(track => {
 				track.stop();
@@ -106,10 +73,34 @@ function stopVideo() {
 	}
 }
 
-function startPeer() {
-	if (pc !== null) {
-		pc.close();
+function startServerConnection(localId, remoteId) {
+	if (sc) {
+		sc.close();
 	}
+	// サーバー接続の開始
+	sc = new WebSocket('wss://' + location.hostname + ':' + sslPort + '/');
+	sc.onmessage = gotMessageFromServer;
+	sc.onopen = function(event) {
+		// サーバーに接続情報を通知
+		this.send(JSON.stringify({open: {local: localId, remote: remoteId}}));
+	};
+	sc.onclose = function(event) {
+		clearInterval(this.timer);
+		setTimeout(function(conn) {
+			if (sc === conn) {
+				// 一定時間経過後にサーバーへ再接続
+				startServerConnection(localId, remoteId);
+			}
+		}, 5000, this);
+	}
+	sc.timer = setInterval(function() {
+		// 接続確認
+		sc.send(JSON.stringify({ping: 1}));
+	}, 30000);
+}
+
+function startPeerConnection() {
+	stopPeerConnection();
 	queue = new Array();
 	pc = new RTCPeerConnection(peerConnectionConfig);
 	pc.onicecandidate = gotIceCandidate;
@@ -120,11 +111,17 @@ function startPeer() {
 	pc.createOffer().then(createdDescription).catch(errorHandler);
 }
 
+function stopPeerConnection() {
+	if (pc) {
+		pc.close();
+		pc = null;
+	}
+}
+
 function gotMessageFromServer(message) {
 	const signal = JSON.parse(message.data);
 	if (signal.start) {
-		// サーバーからの「start」を受けてビデオを開始する
-		startVideo();
+		startPeerConnection();
 		return;
 	}
 	if (signal.close) {
@@ -133,7 +130,7 @@ function gotMessageFromServer(message) {
 		return;
 	}
 	if (signal.ping) {
-		serverConnection.send(JSON.stringify({pong: 1}));
+		sc.send(JSON.stringify({pong: 1}));
 		return;
 	}
 	if (!pc) {
@@ -142,13 +139,10 @@ function gotMessageFromServer(message) {
 	if (signal.sdp) {
 		if (pc.remoteDescription) {
 			// 接続済で新しい接続が来た場合は古い方を破棄する
-			if (pc !== null) {
-				pc.close();
-				pc = null;
-			}
+			stopPeerConnection();
 			// 同時接続回避のための遅延
 			setTimeout(function() {
-				startPeer();
+				startPeerConnection();
 			}, Math.floor(Math.random() * 1000));
 			return;
 		}
@@ -175,20 +169,20 @@ function gotMessageFromServer(message) {
 }
 
 function gotIceCandidate(event) {
-	if (event.candidate != null) {
-		serverConnection.send(JSON.stringify({ice: event.candidate, remote: remoteId}));
+	if (event.candidate) {
+		sc.send(JSON.stringify({ice: event.candidate, remote: remoteId}));
 	}
 }
 
 function createdDescription(description) {
 	pc.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
+		sc.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
 function gotAnswer(description) {
 	pc.setLocalDescription(description).then(function() {
-		serverConnection.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
+		sc.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);
 }
 
