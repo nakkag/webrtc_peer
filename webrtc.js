@@ -104,17 +104,13 @@ function stopVideo() {
 		}
 		remoteVideo.srcObject = null;
 	}
-	if (pc !== null) {
-		pc.close();
-		pc = null;
-	}
-	queue = new Array();
 }
 
 function startPeer() {
 	if (pc !== null) {
 		pc.close();
 	}
+	queue = new Array();
 	pc = new RTCPeerConnection(peerConnectionConfig);
 	pc.onicecandidate = gotIceCandidate;
 	if (window.stream) {
@@ -134,7 +130,6 @@ function gotMessageFromServer(message) {
 	if (signal.close) {
 		// 接続先の終了通知
 		stopVideo();
-		startPeer();
 		return;
 	}
 	if (signal.ping) {
@@ -146,8 +141,11 @@ function gotMessageFromServer(message) {
 	}
 	if (signal.sdp) {
 		if (pc.remoteDescription) {
-			// Peer接続済のためPeerを破棄して、新しいPeerを開始する
-			stopVideo();
+			// 接続済で新しい接続が来た場合は古い方を破棄する
+			if (pc !== null) {
+				pc.close();
+				pc = null;
+			}
 			// 同時接続回避のための遅延
 			setTimeout(function() {
 				startPeer();

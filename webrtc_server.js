@@ -90,7 +90,8 @@ const socketProc = function(ws, req) {
 
 // 静的ファイル処理
 const service = function(req, res) {
-	const file = path.join(process.cwd(), req.url);
+	const url = req.url.replace(/\?.+$/, '');
+	const file = path.join(process.cwd(), url);
 	fs.stat(file, (err, stat) => {
 		if (err) {
 			res.writeHead(404);
@@ -98,10 +99,13 @@ const service = function(req, res) {
 			return;
 		}
 		if (stat.isDirectory()) {
-			service({url: `${req.url}/index.html`}, res);
+			service({url: url.replace(/\/$/, '') + '/index.html'}, res);
 		} else if (stat.isFile()) {
 			const stream = fs.createReadStream(file);
 			stream.pipe(res);
+		} else {
+			res.writeHead(404);
+			res.end();
 		}
 	});
 };
