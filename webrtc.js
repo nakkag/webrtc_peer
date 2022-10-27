@@ -121,6 +121,7 @@ function stopPeerConnection() {
 function gotMessageFromServer(message) {
 	const signal = JSON.parse(message.data);
 	if (signal.start) {
+		// サーバーからの「start」を受けてPeer接続を開始する
 		startPeerConnection();
 		return;
 	}
@@ -138,7 +139,7 @@ function gotMessageFromServer(message) {
 	}
 	if (signal.sdp) {
 		if (pc.remoteDescription) {
-			// 接続済で新しい接続が来た場合は古い方を破棄する
+			// Peer接続済で新しいPeer接続が来た場合は古い方を破棄する
 			stopPeerConnection();
 			// 同時接続回避のための遅延
 			setTimeout(function() {
