@@ -52,8 +52,7 @@ function startVideo(localId, remoteId) {
 			localVideo.srcObject = stream;
 			startServerConnection(localId, remoteId);
 		}).catch(e => {
-			console.error(error);
-			alert('WebCam Start Error.\n\n' + error);
+			alert('Camera start error.\n\n' + error);
 		});
 	} else {
 		alert('Your browser does not support getUserMedia API');
@@ -196,5 +195,5 @@ function setDescription(description) {
 }
 
 function errorHandler(error) {
-	alert('WebCam Start Error.\n\n' + error);
+	alert('Signaling error.\n\n' + error);
 }
