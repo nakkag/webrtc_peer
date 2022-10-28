@@ -14,7 +14,7 @@ const peerConnectionConfig = {
 	]
 };
 
-document.onreadystatechange = function() {
+window.onload = function() {
 	localVideo = document.getElementById('localVideo');
 	remoteVideo = document.getElementById('remoteVideo');
 
@@ -84,7 +84,7 @@ function startServerConnection(localId, remoteId) {
 		this.send(JSON.stringify({open: {local: localId, remote: remoteId}}));
 	};
 	sc.onclose = function(event) {
-		clearInterval(this.timer);
+		clearInterval(this._pingTimer);
 		setTimeout(function(conn) {
 			if (sc === conn) {
 				// 一定時間経過後にサーバーへ再接続
@@ -92,7 +92,7 @@ function startServerConnection(localId, remoteId) {
 			}
 		}, 5000, this);
 	}
-	sc.timer = setInterval(function() {
+	sc._pingTimer = setInterval(function() {
 		// 接続確認
 		sc.send(JSON.stringify({ping: 1}));
 	}, 30000);

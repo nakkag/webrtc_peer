@@ -15,7 +15,7 @@ let connections = [];
 
 // WebSocket処理
 const socketProc = function(ws, req) {
-	ws.pingTimer = setInterval(function() {
+	ws._pingTimer = setInterval(function() {
 		if (ws.readyState === WebSocket.OPEN) {
 			// 接続確認
 			ws.send(JSON.stringify({ping: 1}));
@@ -81,9 +81,9 @@ const socketProc = function(ws, req) {
 			data.ws = null;
 			return false;
 		});
-		if (conn.pingTimer) {
-			clearInterval(conn.pingTimer);
-			conn.pingTimer = null;
+		if (conn._pingTimer) {
+			clearInterval(conn._pingTimer);
+			conn._pingTimer = null;
 		}
 	}
 };
