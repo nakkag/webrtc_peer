@@ -118,9 +118,9 @@ const service = function(req, res) {
 };
 
 // HTTPSサーバの開始
-const httpsCamServer = https.createServer(serverConfig, service);
-httpsCamServer.listen(sslPort, '0.0.0.0');
+const httpsServer = https.createServer(serverConfig, service);
+httpsServer.listen(sslPort, '0.0.0.0');
 // WebSocketの開始
-const wss_cam = new WebSocket.Server({server: httpsCamServer});
-wss_cam.on('connection', socketProc);
+const wss = new WebSocket.Server({server: httpsServer});
+wss.on('connection', socketProc);
 console.log('Server running.');
