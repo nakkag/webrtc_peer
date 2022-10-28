@@ -30,7 +30,14 @@ const socketProc = function(ws, req) {
 			connections = connections.filter(data => !(data.local === json.open.local && data.remote === json.open.remote));
 			// 接続情報を保存
 			connections.push({local: json.open.local, remote: json.open.remote, ws: ws});
-			ws.send(JSON.stringify({start: 1}));
+			connections.some(data => {
+				if (data.local === json.open.remote && data.ws.readyState === WebSocket.OPEN) {
+					// 両方が接続済の場合にstartを通知
+					ws.send(JSON.stringify({start: 1}));
+					data.ws.send(JSON.stringify({start: 1}));
+					return true;
+				}
+			});
 			return;
 		}
 		if (json.error) {

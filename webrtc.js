@@ -120,8 +120,12 @@ function startPeerConnection() {
 			remoteVideo.srcObject = new MediaStream(event.track);
 		}
 	};
-	// Offerの作成
-	pc.createOffer().then(setDescription).catch(errorHandler);
+	setTimeout(() => {
+		if (!pc.remoteDescription) {
+			// Offerの作成
+			pc.createOffer().then(setDescription).catch(errorHandler);
+		}
+	}, Math.floor(Math.random() * 1000));
 }
 
 function stopPeerConnection() {
@@ -141,6 +145,7 @@ function gotMessageFromServer(message) {
 	if (signal.close) {
 		// 接続先の終了通知
 		stopVideo();
+		stopPeerConnection();
 		return;
 	}
 	if (signal.ping) {
@@ -154,12 +159,7 @@ function gotMessageFromServer(message) {
 	if (signal.sdp) {
 		// SDP受信
 		if (pc.remoteDescription) {
-			// Peer接続済で新しいPeer接続が来た場合は古い方を破棄する
-			stopPeerConnection();
-			// 対向との同時接続を回避するために遅延する
-			setTimeout(() => {
-				startPeerConnection();
-			}, Math.floor(Math.random() * 1000));
+			startPeerConnection();
 			return;
 		}
 		if (signal.sdp.type === 'offer') {
