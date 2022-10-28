@@ -7,7 +7,7 @@ const sslPort = 8443;
 const serverConfig = {
 	// SSL証明書、環境に合わせてパスを変更する
 	key: fs.readFileSync('privkey.pem'),
-	cert: fs.readFileSync('fullchain.pem')
+	cert: fs.readFileSync('cert.pem')
 };
 
 // 接続リスト
