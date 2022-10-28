@@ -47,7 +47,7 @@ function startVideo(localId, remoteId) {
 			audio: true,
 			video: true
 		};
-		navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+		navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 			window.stream = stream;
 			localVideo.srcObject = stream;
 			startServerConnection(localId, remoteId);
@@ -85,14 +85,14 @@ function startServerConnection(localId, remoteId) {
 	};
 	sc.onclose = function(event) {
 		clearInterval(this._pingTimer);
-		setTimeout(function(conn) {
+		setTimeout(conn => {
 			if (sc === conn) {
 				// 一定時間経過後にサーバーへ再接続
 				startServerConnection(localId, remoteId);
 			}
 		}, 5000, this);
 	}
-	sc._pingTimer = setInterval(function() {
+	sc._pingTimer = setInterval(() => {
 		// 接続確認
 		sc.send(JSON.stringify({ping: 1}));
 	}, 30000);
@@ -157,13 +157,13 @@ function gotMessageFromServer(message) {
 			// Peer接続済で新しいPeer接続が来た場合は古い方を破棄する
 			stopPeerConnection();
 			// 対向との同時接続を回避するために遅延する
-			setTimeout(function() {
+			setTimeout(() => {
 				startPeerConnection();
 			}, Math.floor(Math.random() * 1000));
 			return;
 		}
 		if (signal.sdp.type === 'offer') {
-			pc.setRemoteDescription(signal.sdp).then(function() {
+			pc.setRemoteDescription(signal.sdp).then(() => {
 				// Answerの作成
 				pc.createAnswer().then(setDescription).catch(errorHandler);
 			}).catch(errorHandler);
@@ -188,7 +188,7 @@ function gotMessageFromServer(message) {
 }
 
 function setDescription(description) {
-	pc.setLocalDescription(description).then(function() {
+	pc.setLocalDescription(description).then(() => {
 		// SDP送信
 		sc.send(JSON.stringify({sdp: pc.localDescription, remote: remoteId}));
 	}).catch(errorHandler);

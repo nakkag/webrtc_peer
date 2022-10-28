@@ -7,7 +7,7 @@ const sslPort = 8443;
 const serverConfig = {
 	// SSL証明書、環境に合わせてパスを変更する
 	key: fs.readFileSync('privkey.pem'),
-	cert: fs.readFileSync('cert.pem')
+	cert: fs.readFileSync('fullchain.pem')
 };
 
 // 接続リスト
@@ -47,7 +47,7 @@ const socketProc = function(ws, req) {
 			return;
 		}
 		// 対向の接続を検索
-		connections.some(function(data) {
+		connections.some(data => {
 			if (data.local === json.remote && data.ws.readyState === WebSocket.OPEN) {
 				// シグナリングメッセージの転送
 				data.ws.send(JSON.stringify(json));
@@ -67,11 +67,11 @@ const socketProc = function(ws, req) {
 	});
 
 	function closeConnection(conn) {
-		connections = connections.filter(function (data, i) {
+		connections = connections.filter(data => {
 			if (data.ws !== conn) {
 				return true;
 			}
-			connections.some(function(remoteData) {
+			connections.some(remoteData => {
 				if (remoteData.local === data.remote && remoteData.ws.readyState === WebSocket.OPEN) {
 					// 対向に切断を通知
 					remoteData.ws.send(JSON.stringify({close: 1}));
