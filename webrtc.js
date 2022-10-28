@@ -98,7 +98,7 @@ function startServerConnection(localId, remoteId) {
 	}, 30000);
 }
 
-function startPeerConnection() {
+function startPeerConnection(sdpType) {
 	stopPeerConnection();
 	queue = new Array();
 	pc = new RTCPeerConnection(peerConnectionConfig);
@@ -120,12 +120,10 @@ function startPeerConnection() {
 			remoteVideo.srcObject = new MediaStream(event.track);
 		}
 	};
-	setTimeout(() => {
-		if (!pc.remoteDescription) {
-			// Offerの作成
-			pc.createOffer().then(setDescription).catch(errorHandler);
-		}
-	}, Math.floor(Math.random() * 1000));
+	if (sdpType === 'offer') {
+		// Offerの作成
+		pc.createOffer().then(setDescription).catch(errorHandler);
+	}
 }
 
 function stopPeerConnection() {
@@ -139,7 +137,7 @@ function gotMessageFromServer(message) {
 	const signal = JSON.parse(message.data);
 	if (signal.start) {
 		// サーバーからの「start」を受けてPeer接続を開始する
-		startPeerConnection();
+		startPeerConnection(signal.start);
 		return;
 	}
 	if (signal.close) {
@@ -158,10 +156,6 @@ function gotMessageFromServer(message) {
 	// 以降はWebRTCのシグナリング処理
 	if (signal.sdp) {
 		// SDP受信
-		if (pc.remoteDescription) {
-			startPeerConnection();
-			return;
-		}
 		if (signal.sdp.type === 'offer') {
 			pc.setRemoteDescription(signal.sdp).then(() => {
 				// Answerの作成
