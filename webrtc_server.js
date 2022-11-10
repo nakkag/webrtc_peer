@@ -15,7 +15,7 @@ let connections = [];
 
 // WebSocket処理
 const socketProc = function(ws, req) {
-	ws.pingTimer = setInterval(function() {
+	ws._pingTimer = setInterval(function() {
 		if (ws.readyState === WebSocket.OPEN) {
 			// 接続確認
 			ws.send(JSON.stringify({ping: 1}));
@@ -30,7 +30,14 @@ const socketProc = function(ws, req) {
 			connections = connections.filter(data => !(data.local === json.open.local && data.remote === json.open.remote));
 			// 接続情報を保存
 			connections.push({local: json.open.local, remote: json.open.remote, ws: ws});
-			ws.send(JSON.stringify({start: 1}));
+			connections.some(data => {
+				if (data.local === json.open.remote && data.ws.readyState === WebSocket.OPEN) {
+					// 両方が接続済の場合にstartを通知
+					data.ws.send(JSON.stringify({start: 'answer'}));
+					ws.send(JSON.stringify({start: 'offer'}));
+					return true;
+				}
+			});
 			return;
 		}
 		if (json.pong) {
@@ -43,7 +50,7 @@ const socketProc = function(ws, req) {
 			return;
 		}
 		// 対向の接続を検索
-		connections.some(function(data) {
+		connections.some(data => {
 			if (data.local === json.remote && data.ws.readyState === WebSocket.OPEN) {
 				// シグナリングメッセージの転送
 				data.ws.send(JSON.stringify(json));
@@ -63,11 +70,11 @@ const socketProc = function(ws, req) {
 	});
 
 	function closeConnection(conn) {
-		connections = connections.filter(function (data, i) {
+		connections = connections.filter(data => {
 			if (data.ws !== conn) {
 				return true;
 			}
-			connections.some(function(remoteData) {
+			connections.some(remoteData => {
 				if (remoteData.local === data.remote && remoteData.ws.readyState === WebSocket.OPEN) {
 					// 対向に切断を通知
 					remoteData.ws.send(JSON.stringify({close: 1}));
@@ -77,9 +84,9 @@ const socketProc = function(ws, req) {
 			data.ws = null;
 			return false;
 		});
-		if (conn.pingTimer) {
-			clearInterval(conn.pingTimer);
-			conn.pingTimer = null;
+		if (conn._pingTimer) {
+			clearInterval(conn._pingTimer);
+			conn._pingTimer = null;
 		}
 	}
 };
@@ -107,9 +114,9 @@ const service = function(req, res) {
 };
 
 // HTTPSサーバの開始
-const httpsCamServer = https.createServer(serverConfig, service);
-httpsCamServer.listen(sslPort, '0.0.0.0');
+const httpsServer = https.createServer(serverConfig, service);
+httpsServer.listen(sslPort, '0.0.0.0');
 // WebSocketの開始
-const wss_cam = new WebSocket.Server({server: httpsCamServer});
-wss_cam.on('connection', socketProc);
+const wss = new WebSocket.Server({server: httpsServer});
+wss.on('connection', socketProc);
 console.log('Server running.');
