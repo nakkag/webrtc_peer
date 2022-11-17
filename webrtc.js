@@ -51,8 +51,8 @@ function startVideo(localId, remoteId) {
 			window.stream = stream;
 			localVideo.srcObject = stream;
 			startServerConnection(localId, remoteId);
-		}).catch(e => {
-			alert('Camera start error.\n\n' + e.name + ': ' + e.message);
+		}).catch(error => {
+			alert('Camera start error.\n\n' + error.name + ': ' + error.message);
 		});
 	} else {
 		alert('Your browser does not support getUserMedia API');
@@ -168,7 +168,7 @@ function gotMessageFromServer(message) {
 	if (signal.ice) {
 		// ICE受信
 		if (pc.remoteDescription) {
-			pc.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(function(error) {
+			pc.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(error => {
 				queue = new Array();
 				errorHandler(error);
 			});
